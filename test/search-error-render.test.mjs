@@ -21,10 +21,10 @@ import { buildSearchErrorPlan } from "../render-search-error.ts";
 // kind of failure the simplified (no-curator) web_search surfaces — a headline
 // error plus the queries that were attempted. ---
 const searchError = {
-	error: "Auto provider search failed:\n  - OpenAI: connection reset\n  - Exa: 401",
+	error: "Auto provider search failed:\n  - Exa: connection reset\n  - Brave: 401",
 	extraLines: [
 		"queries: rust async runtime comparison, tokio vs async-std",
-		"providers tried: openai, exa, brave",
+		"providers tried: exa, brave, parallel",
 		"  \u25b8 set an API key in ~/.pi/web-search.json",
 	],
 };
@@ -43,7 +43,7 @@ test("expanded plan surfaces the diagnostics that were previously discarded", ()
 	const expanded = plan.expanded.join("\n");
 	// extra detail lines are all surfaced
 	assert.match(expanded, /queries: rust async runtime comparison/);
-	assert.match(expanded, /providers tried: openai, exa, brave/);
+	assert.match(expanded, /providers tried: exa, brave, parallel/);
 	assert.match(expanded, /set an API key/);
 });
 

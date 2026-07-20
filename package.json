@@ -1,7 +1,7 @@
 {
   "name": "pi-web-access",
   "version": "0.13.0",
-  "description": "Lightweight web search & URL fetch bridge for Pi. OpenAI, Brave, Parallel, Tavily, Exa, Perplexity, and Gemini API providers. Pure API — no browser, no cookies, no ffmpeg/yt-dlp.",
+  "description": "Lightweight web search & URL fetch bridge for Pi. Dedicated search APIs only: Exa, Brave, Parallel, Tavily. Pure HTTP — no browser, no cookies, no ffmpeg/yt-dlp.",
   "type": "module",
   "scripts": {
     "test": "node --test"

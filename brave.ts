@@ -1,6 +1,6 @@
 import { existsSync, readFileSync } from "node:fs";
 import { activityMonitor } from "./activity.ts";
-import type { SearchOptions, SearchResult, SearchResponse } from "./perplexity.ts";
+import type { SearchOptions, SearchResult, SearchResponse } from "./types.ts";
 import { getWebSearchConfigPath } from "./utils.ts";
 
 const BRAVE_API_URL = "https://api.search.brave.com/res/v1/web/search";

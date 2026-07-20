@@ -11,6 +11,8 @@ All notable changes to this project will be documented in this file.
 - Removed video extraction (`youtube-extract.ts`, `video-extract.ts`) and the `prompt`/`timestamp`/`frames`/`model` parameters on `fetch_content`. YouTube URLs now fetch like any other URL.
 - Removed GitHub repo cloning (`github-extract.ts`, `github-api.ts`) and the `forceClone` parameter. GitHub URLs fetch as rendered HTML.
 - Removed PDF extraction (`pdf-extract.ts`) and the `unpdf` dependency (which declared a native `@napi-rs/canvas` peerDependency). PDF URLs now fall through to normal HTML extraction.
+- **Trimmed search providers to dedicated search APIs only.** Removed OpenAI/Codex web search (repurposed LLM provider that reused a Codex subscription), Perplexity (client-side throttled to 10 req/min — not usable for real workloads), and the Gemini API search provider (LLM-with-grounding, not a dedicated search API; also dropped `gemini-api.ts`, `geminiBaseUrl`, `cloudflareApiKey`, `searchModel`). Kept Exa, Brave, Parallel, and Tavily. The auto fallback chain is now Exa → Brave → Parallel → Tavily.
+- Removed `openai-search.ts` and `perplexity.ts` providers; relocated the shared `SearchResult`/`SearchResponse`/`SearchOptions` types from `perplexity.ts` into a new `types.ts`. Renamed the search router `gemini-search.ts` → `search.ts` (it no longer touches Gemini).
 - Removed the TUI activity widget, activity shortcut, and `/search` browse command. (Provider logging in `activity.ts` is retained.)
 - Removed the bundled `skills/librarian` skill (its clone+video workflow no longer exists).
 

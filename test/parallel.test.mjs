@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { test } from "node:test";
 
 const parallelModuleUrl = new URL("../parallel.ts", import.meta.url).href;
-const searchModuleUrl = new URL("../gemini-search.ts", import.meta.url).href;
+const searchModuleUrl = new URL("../search.ts", import.meta.url).href;
 const extractModuleUrl = new URL("../extract.ts", import.meta.url).href;
 
 async function createHome(config = {}) {
@@ -107,8 +107,8 @@ test("Parallel extract retries full content when excerpts are too short", async 
 	assert.match(output.result.content, /^# Full/);
 });
 
-test("fetch_content returns a guidance error when Parallel extract fails (no browser Gemini fallback)", async () => {
-	const home = await createHome({ geminiApiKey: "gemini-test-key" });
+test("fetch_content returns a guidance error when Parallel extract fails", async () => {
+	const home = await createHome();
 	const child = runChild(`
 		const calls = [];
 		globalThis.fetch = async (url, init = {}) => {
@@ -136,7 +136,5 @@ test("fetch_content returns a guidance error when Parallel extract fails (no bro
 	assert.equal(child.status, 0, child.stderr);
 	const output = JSON.parse(child.stdout.trim());
 	assert.ok(output.calls.includes("https://api.parallel.ai/v1/extract"));
-	// No browser-cookie Gemini fallback anymore: the Gemini API must NOT be called for extraction.
-	assert.ok(!output.calls.some((url) => url.includes("generativelanguage.googleapis.com")), "Gemini extraction fallback should be gone");
 	assert.ok(output.result.error, "expected a guidance error");
 });

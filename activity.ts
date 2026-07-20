@@ -1,7 +1,5 @@
 // Lightweight in-memory activity logging used by the search/fetch providers.
 // Each provider calls logStart -> logComplete/logError around its network calls.
-// (The TUI activity widget that previously rendered these entries was removed;
-// the logging surface is retained because every provider depends on it.)
 
 export interface ActivityEntry {
 	id: string;
@@ -14,17 +12,9 @@ export interface ActivityEntry {
 	error?: string;
 }
 
-export interface RateLimitInfo {
-	used: number;
-	max: number;
-	oldestTimestamp: number | null;
-	windowMs: number;
-}
-
 export class ActivityMonitor {
 	private entries: ActivityEntry[] = [];
 	private readonly maxEntries = 10;
-	private rateLimitInfo: RateLimitInfo = { used: 0, max: 10, oldestTimestamp: null, windowMs: 60000 };
 	private nextId = 1;
 
 	logStart(partial: Omit<ActivityEntry, "id" | "startTime" | "status">): string {
@@ -58,13 +48,8 @@ export class ActivityMonitor {
 		}
 	}
 
-	updateRateLimit(info: RateLimitInfo): void {
-		this.rateLimitInfo = info;
-	}
-
 	clear(): void {
 		this.entries = [];
-		this.rateLimitInfo = { used: 0, max: 10, oldestTimestamp: null, windowMs: 60000 };
 	}
 }
 

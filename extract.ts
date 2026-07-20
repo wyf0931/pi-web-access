@@ -195,7 +195,6 @@ export async function extractContent(
 		"",
 		"Fallback options:",
 		`  \u2022 Set PARALLEL_API_KEY in ${WEB_SEARCH_CONFIG_PATH}`,
-		`  \u2022 Set GEMINI_API_KEY in ${WEB_SEARCH_CONFIG_PATH}`,
 		"  \u2022 Use web_search to find content about this topic",
 	].join("\n");
 	return { ...httpResult, error: guidance };
