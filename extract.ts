@@ -7,7 +7,6 @@ import { extractRSCContent } from "./rsc-extract.ts";
 import { extractPDFToMarkdown, isPDF } from "./pdf-extract.ts";
 import { extractGitHub } from "./github-extract.ts";
 import { isYouTubeURL, isYouTubeEnabled, extractYouTube, extractYouTubeFrame, extractYouTubeFrames, getYouTubeStreamInfo } from "./youtube-extract.ts";
-import { extractWithUrlContext, extractWithGeminiWeb } from "./gemini-url-context.ts";
 import { extractWithParallel, isParallelAvailable } from "./parallel.ts";
 import { isVideoFile, extractVideo, extractVideoFrame, getLocalVideoDuration } from "./video-extract.ts";
 import { existsSync, readFileSync } from "node:fs";
@@ -477,18 +476,6 @@ export async function extractContent(
 	}
 	if (signal?.aborted) return abortedResult(url);
 
-	let geminiResult: ExtractedContent | null = null;
-	try {
-		geminiResult = await extractWithUrlContext(url, signal)
-			?? await extractWithGeminiWeb(url, signal);
-	} catch (err) {
-		if (isAbortError(err)) return abortedResult(url);
-		if (isConfigParseError(err)) {
-			return { ...httpResult, error: errorMessage(err) };
-		}
-	}
-
-	if (geminiResult) return geminiResult;
 	if (signal?.aborted) return abortedResult(url);
 
 	const guidance = [
@@ -498,7 +485,6 @@ export async function extractContent(
 		"Fallback options:",
 		`  \u2022 Set PARALLEL_API_KEY in ${WEB_SEARCH_CONFIG_PATH}`,
 		`  \u2022 Set GEMINI_API_KEY in ${WEB_SEARCH_CONFIG_PATH}`,
-		"  \u2022 Sign into gemini.google.com in Chrome",
 		"  \u2022 Use web_search to find content about this topic",
 	].join("\n");
 	return { ...httpResult, error: guidance };

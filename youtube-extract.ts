@@ -1,7 +1,6 @@
 import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { activityMonitor } from "./activity.ts";
-import { isGeminiWebAvailable, queryWithCookies } from "./gemini-web.ts";
 import { isGeminiApiAvailable, queryGeminiApiWithVideo } from "./gemini-api.ts";
 import { isPerplexityAvailable, searchWithPerplexity } from "./perplexity.ts";
 import { extractHeadingTitle, type ExtractedContent, type FrameResult, type VideoFrame } from "./extract.ts";
@@ -110,8 +109,7 @@ export async function extractYouTube(
 	const activityId = activityMonitor.logStart({ type: "fetch", url: `youtube.com/${videoId ?? "video"}` });
 	const attemptErrors: string[] = [];
 
-	const result = await tryGeminiWeb(canonicalUrl, effectivePrompt, effectiveModel, signal, attemptErrors)
-		?? await tryGeminiApi(canonicalUrl, effectivePrompt, effectiveModel, signal, attemptErrors)
+	const result = await tryGeminiApi(canonicalUrl, effectivePrompt, effectiveModel, signal, attemptErrors)
 		?? await tryPerplexity(url, effectivePrompt, signal, attemptErrors);
 
 	if (result) {
@@ -220,39 +218,6 @@ export async function fetchYouTubeThumbnail(videoId: string): Promise<{ data: st
 		if (buffer.length === 0) return null;
 		return { data: buffer.toString("base64"), mimeType: "image/jpeg" };
 	} catch {
-		return null;
-	}
-}
-
-async function tryGeminiWeb(
-	url: string,
-	prompt: string,
-	model: string,
-	signal: AbortSignal | undefined,
-	attemptErrors: string[],
-): Promise<ExtractedContent | null> {
-	try {
-		const cookies = await isGeminiWebAvailable();
-		if (!cookies) return null;
-
-		if (signal?.aborted) return null;
-
-		const text = await queryWithCookies(prompt, cookies, {
-			youtubeUrl: url,
-			model,
-			signal,
-			timeoutMs: 120000,
-		});
-
-		return {
-			url,
-			title: extractHeadingTitle(text) ?? "YouTube Video",
-			content: text,
-			error: null,
-		};
-	} catch (err) {
-		if (shouldRethrow(err)) throw err;
-		if (!signal?.aborted) addAttemptError(attemptErrors, "Gemini Web", err);
 		return null;
 	}
 }
