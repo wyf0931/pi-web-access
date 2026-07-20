@@ -4,7 +4,7 @@ import TurndownService from "turndown";
 import pLimit from "p-limit";
 import { activityMonitor } from "./activity.ts";
 import { extractRSCContent } from "./rsc-extract.ts";
-import { extractPDFToMarkdown, isPDF } from "./pdf-extract.ts";
+
 import { extractWithParallel, isParallelAvailable } from "./parallel.ts";
 import { existsSync, readFileSync } from "node:fs";
 import { fetchRemoteUrl, validateRemoteUrl, type Lookup } from "./ssrf-protection.ts";
@@ -269,8 +269,7 @@ async function extractViaHttp(
 
 		const contentLengthHeader = response.headers.get("content-length");
 		const contentType = response.headers.get("content-type") || "";
-		const isPDFContent = isPDF(url, contentType);
-		const maxResponseSize = isPDFContent ? 20 * 1024 * 1024 : 5 * 1024 * 1024;
+		const maxResponseSize = 5 * 1024 * 1024;
 		if (contentLengthHeader) {
 			const contentLength = parseInt(contentLengthHeader, 10);
 			if (contentLength > maxResponseSize) {
@@ -281,24 +280,6 @@ async function extractViaHttp(
 					content: "",
 					error: `Response too large (${Math.round(contentLength / 1024 / 1024)}MB)`,
 				};
-			}
-		}
-
-		if (isPDFContent) {
-			try {
-				const buffer = await response.arrayBuffer();
-				const result = await extractPDFToMarkdown(buffer, url);
-				activityMonitor.logComplete(activityId, response.status);
-				return {
-					url,
-					title: result.title,
-					content: `PDF extracted and saved to: ${result.outputPath}\n\nPages: ${result.pages}\nCharacters: ${result.chars}`,
-					error: null,
-				};
-			} catch (err) {
-				const message = err instanceof Error ? err.message : String(err);
-				activityMonitor.logError(activityId, message);
-				return { url, title: "", content: "", error: `PDF extraction failed: ${message}` };
 			}
 		}
 

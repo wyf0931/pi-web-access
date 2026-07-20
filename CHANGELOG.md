@@ -10,6 +10,7 @@ All notable changes to this project will be documented in this file.
 - Removed the Curator browser UI (`curator-server.ts`, `curator-page.ts`, the glimpse window, `summary-review.ts`, `summary-model-scope.ts`) plus the `websearch`/`curator` commands, the curate shortcut, and the `workflow`/`summary-review`/`auto-summary` parameter. `web_search` returns results directly.
 - Removed video extraction (`youtube-extract.ts`, `video-extract.ts`) and the `prompt`/`timestamp`/`frames`/`model` parameters on `fetch_content`. YouTube URLs now fetch like any other URL.
 - Removed GitHub repo cloning (`github-extract.ts`, `github-api.ts`) and the `forceClone` parameter. GitHub URLs fetch as rendered HTML.
+- Removed PDF extraction (`pdf-extract.ts`) and the `unpdf` dependency (which declared a native `@napi-rs/canvas` peerDependency). PDF URLs now fall through to normal HTML extraction.
 - Removed the TUI activity widget, activity shortcut, and `/search` browse command. (Provider logging in `activity.ts` is retained.)
 - Removed the bundled `skills/librarian` skill (its clone+video workflow no longer exists).
 

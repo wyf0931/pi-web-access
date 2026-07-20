@@ -83,7 +83,7 @@ In `auto` mode (default), `web_search` tries OpenAI when suitable and available,
 
 ### fetch_content
 
-Fetch URL(s) and extract readable content as markdown. Detects and handles PDFs and regular web pages.
+Fetch URL(s) and extract readable content as markdown. Detects regular web pages and JS-rendered SPAs.
 
 ```typescript
 fetch_content({ url: "https://example.com/article" })
@@ -106,10 +106,6 @@ get_search_content({ responseId: "abc123", query: "original query" })
 
 ## Capabilities
 
-### PDFs
-
-PDF URLs are extracted as text and saved to `~/Downloads/` as markdown. The agent can then `read` specific sections without loading the full document into context. Text-based extraction only — no OCR.
-
 ### Blocked / JS-rendered pages
 
 When Readability fails or returns only a cookie notice, the extension retries via Jina Reader (handles JS rendering server-side, no API key needed), then Parallel extraction. Handles SPAs, JS-heavy pages, and anti-bot protections transparently. Also parses Next.js RSC flight data when present.
@@ -121,8 +117,7 @@ web_search(query)
   → OpenAI (when suitable & available) → Exa → Brave → Parallel → Tavily → Perplexity → Gemini API
 
 fetch_content(url)
-  → HTTP fetch → PDF? Extract text, save to ~/Downloads/
-               → HTML? Readability → RSC parser → Jina Reader → Parallel fallback
+  → HTTP fetch → HTML? Readability → RSC parser → Jina Reader → Parallel fallback
                → Text/JSON/Markdown? Return directly
 ```
 
@@ -160,7 +155,6 @@ Config changes require a Pi restart. Rate limits: Perplexity is capped at 10 req
 
 ## Limitations
 
-- PDFs are text-extracted only (no OCR for scanned documents).
 - GitHub URLs are fetched as rendered HTML like any other URL (no local cloning).
 - YouTube URLs are fetched as the public watch page (no transcript/frame extraction).
 
@@ -179,7 +173,6 @@ Config changes require a Pi restart. Rate limits: Perplexity is capped at 10 req
 | `gemini-search.ts` | Search routing across all providers |
 | `gemini-api.ts` | Gemini REST API client (generateContent) |
 | `perplexity.ts` | Perplexity API client with rate limiting |
-| `pdf-extract.ts` | PDF text extraction, saves to markdown |
 | `rsc-extract.ts` | RSC flight data parser for Next.js pages |
 | `ssrf-protection.ts` | SSRF guard for fetch URL validation |
 | `render-search-error.ts` | Expandable error rendering for tool results |
