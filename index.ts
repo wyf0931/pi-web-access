@@ -9,17 +9,14 @@ import type { SearchResult } from "./perplexity.ts";
 import { getWebSearchConfigDir, getWebSearchConfigPath } from "./utils.ts";
 import {
 	clearResults,
-	deleteResult,
 	generateId,
-	getAllResults,
 	getResult,
 	restoreFromSession,
 	storeResult,
 	type QueryResultData,
 	type StoredSearchData,
 } from "./storage.ts";
-import { activityMonitor, type ActivityEntry } from "./activity.ts";
-import { truncateToWidth } from "@earendil-works/pi-tui";
+import { activityMonitor } from "./activity.ts";
 import { isPerplexityAvailable } from "./perplexity.ts";
 import { isExaAvailable } from "./exa.ts";
 import { isGeminiApiAvailable } from "./gemini-api.ts";
@@ -53,9 +50,6 @@ interface WebSearchConfig {
 	provider?: string;
 	webSearch?: {
 		enabled?: boolean;
-	};
-	shortcuts?: {
-		activity?: string;
 	};
 	ssrf?: {
 		/** CIDR ranges exempted from the SSRF guard (e.g. fake-IP proxy ranges). */
@@ -101,8 +95,6 @@ function saveConfig(updates: Partial<WebSearchConfig>): void {
 	if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
 	writeFileSync(WEB_SEARCH_CONFIG_PATH, JSON.stringify(config, null, 2) + "\n");
 }
-
-const DEFAULT_SHORTCUTS = { activity: "ctrl+shift+w" };
 
 function loadConfigForExtensionInit(): WebSearchConfig {
 	try {
@@ -201,8 +193,6 @@ function resolveProvider(
 
 const pendingFetches = new Map<string, AbortController>();
 let sessionActive = false;
-let widgetVisible = false;
-let widgetUnsubscribe: (() => void) | null = null;
 
 const MAX_INLINE_CONTENT = 30000; // Content returned directly to agent
 
@@ -245,85 +235,15 @@ function extractDomain(url: string): string {
 	catch { return url; }
 }
 
-function updateWidget(ctx: ExtensionContext): void {
-	const theme = ctx.ui.theme;
-	const entries = activityMonitor.getEntries();
-	const lines: string[] = [];
-
-	lines.push(theme.fg("accent", "─── Web Search Activity " + "─".repeat(36)));
-
-	if (entries.length === 0) {
-		lines.push(theme.fg("muted", "  No activity yet"));
-	} else {
-		for (const e of entries) {
-			lines.push("  " + formatEntryLine(e, theme));
-		}
-	}
-
-	lines.push(theme.fg("accent", "─".repeat(60)));
-
-	const rateInfo = activityMonitor.getRateLimitInfo();
-	const resetMs = rateInfo.oldestTimestamp ? Math.max(0, rateInfo.oldestTimestamp + rateInfo.windowMs - Date.now()) : 0;
-	const resetSec = Math.ceil(resetMs / 1000);
-	lines.push(
-		theme.fg("muted", `Rate: ${rateInfo.used}/${rateInfo.max}`) +
-			(resetMs > 0 ? theme.fg("dim", ` (resets in ${resetSec}s)`) : ""),
-	);
-
-	ctx.ui.setWidget("web-activity", new Text(lines.join("\n"), 0, 0));
-}
-
-function formatEntryLine(
-	entry: ActivityEntry,
-	theme: { fg: (color: string, text: string) => string },
-): string {
-	const typeStr = entry.type === "api" ? "API" : "GET";
-	const target =
-		entry.type === "api"
-			? `"${truncateToWidth(entry.query || "", 28, "")}"`
-			: truncateToWidth(entry.url?.replace(/^https?:\/\//, "") || "", 30, "");
-
-	const duration = entry.endTime
-		? `${((entry.endTime - entry.startTime) / 1000).toFixed(1)}s`
-		: `${((Date.now() - entry.startTime) / 1000).toFixed(1)}s`;
-
-	let statusStr: string;
-	let indicator: string;
-	if (entry.error) {
-		statusStr = "err";
-		indicator = theme.fg("error", "✗");
-	} else if (entry.status === null) {
-		statusStr = "...";
-		indicator = theme.fg("warning", "⋯");
-	} else if (entry.status === 0) {
-		statusStr = "abort";
-		indicator = theme.fg("muted", "○");
-	} else {
-		statusStr = String(entry.status);
-		indicator = entry.status >= 200 && entry.status < 300 ? theme.fg("success", "✓") : theme.fg("error", "✗");
-	}
-
-	return `${typeStr.padEnd(4)} ${target.padEnd(32)} ${statusStr.padStart(5)} ${duration.padStart(5)} ${indicator}`;
-}
-
-function handleSessionChange(ctx: ExtensionContext): void {
+function handleSessionChange(_ctx: ExtensionContext): void {
 	abortPendingFetches();
 	sessionActive = true;
-	restoreFromSession(ctx);
-	// Unsubscribe before clear() to avoid callback with stale ctx
-	widgetUnsubscribe?.();
-	widgetUnsubscribe = null;
+	restoreFromSession(_ctx);
 	activityMonitor.clear();
-	if (widgetVisible) {
-		// Re-subscribe with new ctx
-		widgetUnsubscribe = activityMonitor.onUpdate(() => updateWidget(ctx));
-		updateWidget(ctx);
-	}
 }
 
 export default function (pi: ExtensionAPI) {
 	const initConfig = loadConfigForExtensionInit();
-	const activityKey = initConfig.shortcuts?.activity || DEFAULT_SHORTCUTS.activity;
 
 	function startBackgroundFetch(urls: string[]): string | null {
 		if (urls.length === 0) return null;
@@ -923,86 +843,6 @@ export default function (pi: ExtensionAPI) {
 			return new Text(statusLine + "\n" + theme.fg("dim", preview), 0, 0);
 		},
 	});
-	pi.registerCommand("search", {
-		description: "Browse stored web search results",
-		handler: async (_args, ctx) => {
-			const results = getAllResults();
-
-			if (results.length === 0) {
-				ctx.ui.notify("No stored search results", "info");
-				return;
-			}
-
-			const options = results.map((r) => {
-				const age = Math.floor((Date.now() - r.timestamp) / 60000);
-				const ageStr = age < 60 ? `${age}m ago` : `${Math.floor(age / 60)}h ago`;
-				if (r.type === "search" && r.queries) {
-					const query = r.queries[0]?.query || "unknown";
-					return `[${r.id.slice(0, 6)}] "${query}" (${r.queries.length} queries) - ${ageStr}`;
-				}
-				if (r.type === "fetch" && r.urls) {
-					return `[${r.id.slice(0, 6)}] ${r.urls.length} URLs fetched - ${ageStr}`;
-				}
-				return `[${r.id.slice(0, 6)}] ${r.type} - ${ageStr}`;
-			});
-
-			const choice = await ctx.ui.select("Stored Search Results", options);
-			if (!choice) return;
-
-			const match = choice.match(/^\[([a-z0-9]+)\]/);
-			if (!match) return;
-
-			const selected = results.find((r) => r.id.startsWith(match[1]));
-			if (!selected) return;
-
-			const actions = ["View details", "Delete"];
-			const action = await ctx.ui.select(`Result ${selected.id.slice(0, 6)}`, actions);
-
-			if (action === "Delete") {
-				deleteResult(selected.id);
-				ctx.ui.notify(`Deleted ${selected.id.slice(0, 6)}`, "info");
-			} else if (action === "View details") {
-				let info = `ID: ${selected.id}\nType: ${selected.type}\nAge: ${Math.floor((Date.now() - selected.timestamp) / 60000)}m\n\n`;
-				if (selected.type === "search" && selected.queries) {
-					info += "Queries:\n";
-					const queries = selected.queries.slice(0, 10);
-					for (const q of queries) {
-						info += `- "${q.query}" (${q.results.length} results)\n`;
-					}
-					if (selected.queries.length > 10) {
-						info += `... and ${selected.queries.length - 10} more\n`;
-					}
-				}
-				if (selected.type === "fetch" && selected.urls) {
-					info += "URLs:\n";
-					const urls = selected.urls.slice(0, 10);
-					for (const u of urls) {
-						const urlDisplay = u.url.length > 50 ? u.url.slice(0, 47) + "..." : u.url;
-						info += `- ${urlDisplay} (${u.error || `${u.content.length} chars`})\n`;
-					}
-					if (selected.urls.length > 10) {
-						info += `... and ${selected.urls.length - 10} more\n`;
-					}
-				}
-				ctx.ui.notify(info, "info");
-			}
-		},
-	});
-
-	pi.registerShortcut(activityKey, {
-		description: "Toggle web search activity",
-		handler: async (ctx) => {
-			widgetVisible = !widgetVisible;
-			if (widgetVisible) {
-				widgetUnsubscribe = activityMonitor.onUpdate(() => updateWidget(ctx));
-				updateWidget(ctx);
-			} else {
-				widgetUnsubscribe?.();
-				widgetUnsubscribe = null;
-				ctx.ui.setWidget("web-activity", undefined);
-			}
-		},
-	});
 
 	pi.on("session_start", async (_event, ctx) => handleSessionChange(ctx));
 	pi.on("session_tree", async (_event, ctx) => handleSessionChange(ctx));
@@ -1011,10 +851,6 @@ export default function (pi: ExtensionAPI) {
 		sessionActive = false;
 		abortPendingFetches();
 		clearResults();
-		// Unsubscribe before clear() to avoid callback with stale ctx
-		widgetUnsubscribe?.();
-		widgetUnsubscribe = null;
 		activityMonitor.clear();
-		widgetVisible = false;
 	});
 }
