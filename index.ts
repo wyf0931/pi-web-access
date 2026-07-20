@@ -4,7 +4,6 @@ import { Type } from "typebox";
 import { StringEnum } from "@earendil-works/pi-ai/compat";
 import { fetchAllContent, type ExtractedContent } from "./extract.ts";
 import { normalizeFetchContentParams } from "./fetch-params.ts";
-import { clearCloneCache } from "./github-extract.ts";
 import { search, type SearchProvider, type ResolvedSearchProvider } from "./gemini-search.ts";
 import type { SearchResult } from "./perplexity.ts";
 import { getWebSearchConfigDir, getWebSearchConfigPath } from "./utils.ts";
@@ -309,7 +308,6 @@ function formatEntryLine(
 
 function handleSessionChange(ctx: ExtensionContext): void {
 	abortPendingFetches();
-	clearCloneCache();
 	sessionActive = true;
 	restoreFromSession(ctx);
 	// Unsubscribe before clear() to avoid callback with stale ctx
@@ -590,15 +588,12 @@ export default function (pi: ExtensionAPI) {
 	pi.registerTool({
 		name: "fetch_content",
 		label: "Fetch Content",
-		description: "Fetch URL(s) and extract readable content as markdown. Supports GitHub repository contents and PDF extraction. Falls back to Jina Reader then Parallel for pages that block bots or fail Readability extraction. Content is always stored and can be retrieved with get_search_content.",
+		description: "Fetch URL(s) and extract readable content as markdown. Falls back to Jina Reader then Parallel for pages that block bots or fail Readability extraction. Content is always stored and can be retrieved with get_search_content.",
 		promptSnippet:
 			"Use to extract readable content from URL(s) or GitHub repos.",
 		parameters: Type.Object({
 			url: Type.Optional(Type.String({ description: "Single URL to fetch" })),
 			urls: Type.Optional(Type.Array(Type.String(), { description: "Multiple URLs (parallel)" })),
-			forceClone: Type.Optional(Type.Boolean({
-				description: "Force cloning large GitHub repositories that exceed the size threshold",
-			})),
 		}),
 
 		async execute(_toolCallId, params, signal, onUpdate) {
@@ -1015,7 +1010,6 @@ export default function (pi: ExtensionAPI) {
 	pi.on("session_shutdown", () => {
 		sessionActive = false;
 		abortPendingFetches();
-		clearCloneCache();
 		clearResults();
 		// Unsubscribe before clear() to avoid callback with stale ctx
 		widgetUnsubscribe?.();

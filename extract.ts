@@ -5,7 +5,6 @@ import pLimit from "p-limit";
 import { activityMonitor } from "./activity.ts";
 import { extractRSCContent } from "./rsc-extract.ts";
 import { extractPDFToMarkdown, isPDF } from "./pdf-extract.ts";
-import { extractGitHub } from "./github-extract.ts";
 import { extractWithParallel, isParallelAvailable } from "./parallel.ts";
 import { existsSync, readFileSync } from "node:fs";
 import { fetchRemoteUrl, validateRemoteUrl, type Lookup } from "./ssrf-protection.ts";
@@ -83,7 +82,6 @@ export interface ExtractedContent {
 
 export interface ExtractOptions {
 	timeoutMs?: number;
-	forceClone?: boolean;
 	/** Custom DNS resolver used for SSRF validation. Primarily a test seam. */
 	lookup?: Lookup;
 }
@@ -153,9 +151,7 @@ export async function extractContent(
 	signal?: AbortSignal,
 	options?: ExtractOptions,
 ): Promise<ExtractedContent> {
-	if (signal?.aborted) {
-		return { url, title: "", content: "", error: "Aborted" };
-	}
+	if (signal?.aborted) return abortedResult(url);
 
 	try {
 		const parsed = new URL(url);
@@ -164,18 +160,6 @@ export async function extractContent(
 		}
 	} catch (err) {
 		return { url, title: "", content: "", error: errorMessage(err) };
-	}
-
-	try {
-		const ghResult = await extractGitHub(url, signal, options?.forceClone);
-		if (ghResult) return ghResult;
-		if (signal?.aborted) return abortedResult(url);
-	} catch (err) {
-		const message = errorMessage(err);
-		if (isAbortError(err)) return abortedResult(url);
-		if (isConfigParseError(err)) {
-			return { url, title: "", content: "", error: message };
-		}
 	}
 
 	if (signal?.aborted) return abortedResult(url);

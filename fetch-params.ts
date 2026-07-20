@@ -1,14 +1,11 @@
 export interface FetchContentParams {
 	url?: unknown;
 	urls?: unknown;
-	forceClone?: unknown;
 }
 
 export interface NormalizedFetchContentParams {
 	urlList: string[];
-	options: {
-		forceClone?: boolean;
-	};
+	options: Record<string, never>;
 }
 
 export function normalizeFetchContentParams(params: FetchContentParams): NormalizedFetchContentParams {
@@ -17,9 +14,7 @@ export function normalizeFetchContentParams(params: FetchContentParams): Normali
 
 	return {
 		urlList,
-		options: {
-			forceClone: typeof params.forceClone === "boolean" ? params.forceClone : undefined,
-		},
+		options: {},
 	};
 }
 

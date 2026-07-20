@@ -29,9 +29,3 @@ test("fetch_content params ignore blank urls and dedupe", () => {
 
 	assert.deepEqual(normalized.urlList, ["https://example.com/two", "https://example.com/one"]);
 });
-
-test("fetch_content params preserve forceClone only for boolean values", () => {
-	assert.equal(normalizeFetchContentParams({ forceClone: true }).options.forceClone, true);
-	assert.equal(normalizeFetchContentParams({ forceClone: false }).options.forceClone, false);
-	assert.equal(normalizeFetchContentParams({ forceClone: "true" }).options.forceClone, undefined);
-});
