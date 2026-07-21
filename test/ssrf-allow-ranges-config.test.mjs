@@ -94,7 +94,7 @@ test("loadSsrfAllowRanges returns [] when the config file is missing", async () 
 
 test("loadSsrfAllowRanges returns [] when ssrf.allowRanges is unset", async () => {
 	const { root, agentDir, configPath } = await makeConfigDir("pi-ssrf-unset-");
-	await writeFile(configPath, JSON.stringify({ perplexityApiKey: "pplx-x" }), "utf8");
+	await writeFile(configPath, JSON.stringify({ braveApiKey: "brave-x" }), "utf8");
 
 	const result = runLoad(envFor(root, agentDir));
 	assert.equal(result.ok, true, result.error);

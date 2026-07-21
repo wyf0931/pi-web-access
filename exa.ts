@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { activityMonitor } from "./activity.ts";
 import type { ExtractedContent } from "./extract.ts";
-import type { SearchOptions, SearchResponse } from "./perplexity.ts";
+import type { SearchOptions, SearchResponse } from "./types.ts";
 import { getWebSearchConfigPath } from "./utils.ts";
 
 const EXA_ANSWER_URL = "https://api.exa.ai/answer";

@@ -17,54 +17,41 @@ import { test } from "node:test";
 
 import { buildSearchErrorPlan } from "../render-search-error.ts";
 
-// --- fixture: a stale cancel with partial results, mirroring the user's report
-// ("Search curation cancelled (stale)" with 2/3 queries done, one errored,
-//  browser never connected). ---
-const staleCancel = {
-	error: "Search curation cancelled (stale).",
-	cancelled: true,
-	cancelReason: "stale",
-	browserConnected: false,
-	lastHeartbeatAgeMs: 31200,
-	queryCount: 3,
-	cancelledQueries: [
-		{ query: "z.ai API usage endpoint coding plan credits", provider: "perplexity", error: null, resultCount: 5 },
-		{ query: "z.ai GLM coding plan API key usage limits", provider: "perplexity", error: "Connection error", resultCount: 0 },
+// --- fixture: a web_search error with partial diagnostics, mirroring the
+// kind of failure the simplified (no-curator) web_search surfaces — a headline
+// error plus the queries that were attempted. ---
+const searchError = {
+	error: "Auto provider search failed:\n  - Exa: connection reset\n  - Brave: 401",
+	extraLines: [
+		"queries: rust async runtime comparison, tokio vs async-std",
+		"providers tried: exa, brave, parallel",
+		"  \u25b8 set an API key in ~/.pi/web-search.json",
 	],
 };
 
-test("cancel/error path is NOT a dead-end single line: expanded plan has >1 line", () => {
-	const plan = buildSearchErrorPlan(staleCancel);
-	assert.notEqual(plan, null, "a cancelled result must produce a plan, not null");
+test("error path is NOT a dead-end single line: expanded plan has >1 line", () => {
+	const plan = buildSearchErrorPlan(searchError);
+	assert.notEqual(plan, null, "an error result with detail must produce a plan, not null");
 	const expanded = plan.expanded.join("\n");
 	// The dead-end was exactly ONE line. Pin that the expanded view is rich.
 	assert.ok(plan.expanded.length > 1, `expanded must be >1 line, got ${plan.expanded.length}`);
-	assert.match(expanded, /Search curation cancelled \(stale\)/);
+	assert.match(expanded, /Auto provider search failed/);
 });
 
 test("expanded plan surfaces the diagnostics that were previously discarded", () => {
-	const plan = buildSearchErrorPlan(staleCancel);
+	const plan = buildSearchErrorPlan(searchError);
 	const expanded = plan.expanded.join("\n");
-	// cancel reason
-	assert.match(expanded, /cancel reason\s*:\s*stale/);
-	// browser state — the #1 stale cause, previously invisible
-	assert.match(expanded, /browser\s*:\s*never connected/);
-	// query progress (2 of 3 done)
-	assert.match(expanded, /queries started\s*:\s*3/);
-	assert.match(expanded, /queries done\s*:\s*2/);
-	// per-query results: the completed one (with source count) AND the errored one
-	assert.match(expanded, /z\.ai API usage endpoint/);
-	assert.match(expanded, /5 sources/);
-	assert.match(expanded, /\[err\]/);
-	assert.match(expanded, /Connection error/);
+	// extra detail lines are all surfaced
+	assert.match(expanded, /queries: rust async runtime comparison/);
+	assert.match(expanded, /providers tried: exa, brave, parallel/);
+	assert.match(expanded, /set an API key/);
 });
 
 test("collapsed view is a short summary WITH a ctrl+o expand hint (Ctrl+O now does something)", () => {
-	const plan = buildSearchErrorPlan(staleCancel);
-	// collapsed preview summarizes progress + browser state
+	const plan = buildSearchErrorPlan(searchError);
+	// collapsed preview surfaces the first detail line(s)
 	const collapsed = plan.collapsed.join("\n");
-	assert.match(collapsed, /2\/3 queries completed/);
-	assert.match(collapsed, /browser never connected/);
+	assert.match(collapsed, /queries: rust async runtime comparison/);
 	// THE fix signal: an expand hint exists (the old single-line return had none,
 	// so Ctrl+O did nothing). Mutation: dropping the hint fails here.
 	assert.equal(typeof plan.expandHint, "string");
@@ -136,15 +123,11 @@ const indexPath = fileURLToPath(new URL("../index.ts", import.meta.url));
 const indexSrc = readFileSync(indexPath, "utf8");
 
 test("index.ts imports buildSearchErrorPlan and wires it into the web_search error path", () => {
-	assert.match(indexSrc, /import \{ buildSearchErrorPlan, type SearchErrorDetails, type SearchErrorPlan \} from "\.\/render-search-error\.ts";/);
+	assert.match(indexSrc, /import \{ buildSearchErrorPlan, type SearchErrorPlan \} from "\.\/render-search-error\.ts";/);
 	// The web_search renderResult error branch must call buildSearchErrorPlan.
 	// (Mutation: reverting renderResult to `return new Text(error...)` drops this.)
-	assert.match(indexSrc, /buildSearchErrorPlan\(details as SearchErrorDetails\)/);
-	// buildCurationCancelledReturn must now carry partial diagnostics into details
-	// (mutation: dropping the partial arg reverts to the discarded-results bug).
-	assert.match(indexSrc, /buildCurationCancelledReturn\(reason, \{/);
-	assert.match(indexSrc, /cancelledQueries/);
-	// the 2 other tools must also delegate to buildSearchErrorPlan (mutation-proof:
+	assert.ok(/buildSearchErrorPlan\(/.test(indexSrc), "web_search must call buildSearchErrorPlan in its error branch");
+	// the 3 tools must each delegate to buildSearchErrorPlan (mutation-proof:
 	// reverting any of them to the bare single-line drops its buildSearchErrorPlan call).
 	// Count call sites: web_search + fetch_content + get_search_content = 3.
 	const callSiteCount = (indexSrc.match(/const plan = buildSearchErrorPlan\(/g) || []).length;

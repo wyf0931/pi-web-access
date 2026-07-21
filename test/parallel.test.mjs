@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { test } from "node:test";
 
 const parallelModuleUrl = new URL("../parallel.ts", import.meta.url).href;
-const searchModuleUrl = new URL("../gemini-search.ts", import.meta.url).href;
+const searchModuleUrl = new URL("../search.ts", import.meta.url).href;
 const extractModuleUrl = new URL("../extract.ts", import.meta.url).href;
 
 async function createHome(config = {}) {
@@ -107,8 +107,8 @@ test("Parallel extract retries full content when excerpts are too short", async 
 	assert.match(output.result.content, /^# Full/);
 });
 
-test("fetch_content continues to Gemini when Parallel extract fails", async () => {
-	const home = await createHome({ geminiApiKey: "gemini-test-key" });
+test("fetch_content returns a guidance error when Parallel extract fails", async () => {
+	const home = await createHome();
 	const child = runChild(`
 		const calls = [];
 		globalThis.fetch = async (url, init = {}) => {
@@ -123,9 +123,6 @@ test("fetch_content continues to Gemini when Parallel extract fails", async () =
 			if (urlText === "https://api.parallel.ai/v1/extract") {
 				return new Response("parallel exploded", { status: 500 });
 			}
-			if (urlText.includes("generativelanguage.googleapis.com")) {
-				return new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text: "# Gemini fallback\\n" + "Recovered content ".repeat(20) }] } }] }), { status: 200, headers: { "content-type": "application/json" } });
-			}
 			throw new Error("Unexpected fetch " + urlText);
 		};
 		const { extractContent } = await import(${JSON.stringify(extractModuleUrl)});
@@ -139,7 +136,5 @@ test("fetch_content continues to Gemini when Parallel extract fails", async () =
 	assert.equal(child.status, 0, child.stderr);
 	const output = JSON.parse(child.stdout.trim());
 	assert.ok(output.calls.includes("https://api.parallel.ai/v1/extract"));
-	assert.ok(output.calls.some((url) => url.includes("generativelanguage.googleapis.com")));
-	assert.equal(output.result.error, null);
-	assert.match(output.result.content, /Gemini fallback/);
+	assert.ok(output.result.error, "expected a guidance error");
 });
