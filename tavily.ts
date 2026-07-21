@@ -1,3 +1,4 @@
+import { register } from "./provider.ts";
 import { existsSync, readFileSync } from "node:fs";
 import { activityMonitor } from "./activity.ts";
 import type { ExtractedContent } from "./extract.ts";
@@ -203,3 +204,10 @@ export async function searchWithTavily(query: string, options: TavilySearchOptio
 	}
 	return result;
 }
+
+register({
+	id: "tavily",
+	label: "Tavily",
+	isAvailable: isTavilyAvailable,
+	search: searchWithTavily,
+});

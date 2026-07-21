@@ -1,3 +1,4 @@
+import { register } from "./provider.ts";
 import { existsSync, readFileSync } from "node:fs";
 import { activityMonitor } from "./activity.ts";
 import type { ExtractedContent, ExtractOptions } from "./extract.ts";
@@ -358,3 +359,10 @@ async function parallelFetch(
 		throw new Error(`Parallel API returned invalid JSON: ${errorMessage(err)}`);
 	}
 }
+
+register({
+	id: "parallel",
+	label: "Parallel",
+	isAvailable: isParallelAvailable,
+	search: searchWithParallel,
+});

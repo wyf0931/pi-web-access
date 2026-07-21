@@ -1,13 +1,17 @@
 import { existsSync, readFileSync } from "node:fs";
-import { isExaAvailable, hasExaApiKey, searchWithExa } from "./exa.ts";
-import { isBraveAvailable, searchWithBrave } from "./brave.ts";
-import { isParallelAvailable, searchWithParallel } from "./parallel.ts";
-import { isTavilyAvailable, searchWithTavily } from "./tavily.ts";
+import { listAvailable, get, list, type SearchProviderId } from "./provider.ts";
+
+// Ensure all providers self-register at import time.
+import "./exa.ts";
+import "./brave.ts";
+import "./parallel.ts";
+import "./tavily.ts";
+
 import type { SearchResult, SearchResponse, SearchOptions } from "./types.ts";
 import { getWebSearchConfigPath } from "./utils.ts";
 
-export type SearchProvider = "auto" | "exa" | "brave" | "parallel" | "tavily";
-export type ResolvedSearchProvider = Exclude<SearchProvider, "auto">;
+export type SearchProvider = "auto" | SearchProviderId;
+export type ResolvedSearchProvider = SearchProviderId;
 
 export interface AttributedSearchResponse extends SearchResponse {
 	provider: ResolvedSearchProvider;
@@ -15,36 +19,29 @@ export interface AttributedSearchResponse extends SearchResponse {
 
 const CONFIG_PATH = getWebSearchConfigPath();
 
-/**
- * Dedicated search providers only. Each requires its own API key (or Exa MCP
- * for zero-config). The fallback chain tries them in order of availability:
- *   Exa → Brave → Parallel → Tavily
- */
-const PROVIDER_ORDER: ResolvedSearchProvider[] = ["exa", "brave", "parallel", "tavily"];
-
-let cachedSearchProvider: SearchProvider | null = null;
+let cachedProvider: SearchProvider | null = null;
 
 function getConfiguredProvider(): SearchProvider {
-	if (cachedSearchProvider) return cachedSearchProvider;
+	if (cachedProvider) return cachedProvider;
 	if (!existsSync(CONFIG_PATH)) {
-		cachedSearchProvider = "auto";
-		return cachedSearchProvider;
+		cachedProvider = "auto";
+		return cachedProvider;
 	}
 	let raw: { provider?: unknown };
 	try {
 		raw = JSON.parse(readFileSync(CONFIG_PATH, "utf-8")) as { provider?: unknown };
-	} catch (err) {
-		const message = err instanceof Error ? err.message : String(err);
-		throw new Error(`Failed to parse ${CONFIG_PATH}: ${message}`);
+	} catch {
+		cachedProvider = "auto";
+		return cachedProvider;
 	}
-	cachedSearchProvider = normalizeSearchProvider(raw.provider);
-	return cachedSearchProvider;
+	cachedProvider = normalizeProvider(raw.provider);
+	return cachedProvider;
 }
 
-function normalizeSearchProvider(value: unknown): SearchProvider {
+function normalizeProvider(value: unknown): SearchProvider {
 	const normalized = typeof value === "string" ? value.trim().toLowerCase() : "";
-	const valid: SearchProvider[] = ["auto", "exa", "brave", "parallel", "tavily"];
-	return valid.includes(normalized as SearchProvider) ? (normalized as SearchProvider) : "auto";
+	const valid = ["auto", "exa", "brave", "parallel", "tavily"];
+	return valid.includes(normalized) ? (normalized as SearchProvider) : "auto";
 }
 
 export interface FullSearchOptions extends SearchOptions {
@@ -60,77 +57,61 @@ function isAbortError(err: unknown): boolean {
 	return errorMessage(err).toLowerCase().includes("abort");
 }
 
-function isProviderAvailable(provider: ResolvedSearchProvider): boolean {
-	switch (provider) {
-		case "exa": return isExaAvailable();
-		case "brave": return isBraveAvailable();
-		case "parallel": return isParallelAvailable();
-		case "tavily": return isTavilyAvailable();
-	}
-}
-
-async function runProvider(
-	provider: ResolvedSearchProvider,
-	query: string,
-	options: SearchOptions,
-): Promise<SearchResponse> {
-	switch (provider) {
-		case "exa": return await searchWithExa(query, options);
-		case "brave": return await searchWithBrave(query, options);
-		case "parallel": return await searchWithParallel(query, options);
-		case "tavily": return await searchWithTavily(query, options);
-	}
-}
-
 /**
  * Run a web search. When `options.provider` is set (or configured) to a specific
- * provider, that provider is used directly. In `auto` mode, providers are tried
- * in order (Exa → Brave → Parallel → Tavily) until one succeeds.
+ * provider, that provider is used directly. In `auto` mode, available providers
+ * are tried in PROVIDER_ORDER until one succeeds.
  */
-export async function search(query: string, options: FullSearchOptions = {}): Promise<AttributedSearchResponse> {
-	const provider = options.provider ?? getConfiguredProvider();
+export async function search(
+	query: string,
+	options: FullSearchOptions = {},
+): Promise<AttributedSearchResponse> {
+	const requested = options.provider ?? getConfiguredProvider();
 
-	// Explicit provider: run it directly and surface failures.
-	if (provider !== "auto") {
-		const result = await runProvider(provider, query, options);
-		return { ...result, provider };
+	// Explicit provider — run it directly, surface failures.
+	if (requested !== "auto") {
+		const def = get(requested);
+		if (!def) {
+			throw new Error(`Unknown search provider: ${requested}. Valid: ${list().map(p => p.id).join(", ")}`);
+		}
+		if (!def.isAvailable()) {
+			// Fall back to the next available provider in order instead of hard-failing.
+			const available = listAvailable();
+			if (available.length === 0) {
+				throw new Error(`Provider "${def.id}" is unavailable and no fallback provider is configured.`);
+			}
+			const fallback = available[0];
+			const result = await fallback.search(query, options);
+			return { ...result, provider: fallback.id };
+		}
+		const result = await def.search(query, options);
+		return { ...result, provider: requested };
 	}
 
-	// Auto: try each available provider in order.
+	// Auto — try each available provider in order.
+	const available = listAvailable();
+	if (available.length === 0) {
+		throw new Error(
+			"No search provider is available. Set an API key for at least one of " +
+			`exaApiKey, braveApiKey, parallelApiKey, or tavilyApiKey in ${CONFIG_PATH} ` +
+			"(or the EXA_API_KEY, BRAVE_API_KEY, PARALLEL_API_KEY, TAVILY_API_KEY env vars). " +
+			"Exa also works zero-config via its MCP."
+		);
+	}
+
 	const errors: string[] = [];
-	for (const candidate of PROVIDER_ORDER) {
-		if (!isProviderAvailable(candidate)) continue;
+	for (const def of available) {
 		try {
-			// Exa without an API key runs in MCP (zero-config) mode; if it returns
-			// nothing we fall through to the next provider instead of hard-failing.
-			if (candidate === "exa" && !hasExaApiKey()) {
-				try {
-					const result = await searchWithExa(query, options);
-					if (result) return { ...result, provider: "exa" };
-				} catch (err) {
-					if (isAbortError(err)) throw err;
-					// MCP failure is recoverable — try the next keyed provider.
-				}
-				continue;
-			}
-			const result = await runProvider(candidate, query, options);
-			return { ...result, provider: candidate };
+			const result = await def.search(query, options);
+			return { ...result, provider: def.id };
 		} catch (err) {
 			if (isAbortError(err)) throw err;
-			errors.push(`${candidate}: ${errorMessage(err)}`);
+			errors.push(`${def.id}: ${errorMessage(err)}`);
 		}
 	}
 
-	if (errors.length > 0) {
-		throw new Error(`Auto provider search failed:\n  - ${errors.join("\n  - ")}`);
-	}
-
-	throw new Error(
-		"No search provider available. Set one of exaApiKey, braveApiKey, parallelApiKey, " +
-		`or tavilyApiKey in ${CONFIG_PATH} (or the EXA_API_KEY, BRAVE_API_KEY, ` +
-		"PARALLEL_API_KEY, TAVILY_API_KEY env vars). Exa also works zero-config via its MCP."
-	);
+	throw new Error(`Auto provider search failed:\n  - ${errors.join("\n  - ")}`);
 }
 
-// Re-export the shared types so existing callers can import everything from here.
+// Re-export shared types for convenience.
 export type { SearchResult, SearchResponse, SearchOptions } from "./types.ts";

@@ -1,3 +1,4 @@
+import { register } from "./provider.ts";
 import { existsSync, readFileSync } from "node:fs";
 import { activityMonitor } from "./activity.ts";
 import type { ExtractedContent } from "./extract.ts";
@@ -452,3 +453,14 @@ export async function searchWithExa(query: string, options: ExaSearchOptions = {
 		throw err;
 	}
 }
+
+register({
+	id: "exa",
+	label: "Exa",
+	isAvailable: isExaAvailable,
+	search: async (query, options) => {
+		const result = await searchWithExa(query, options);
+		if (!result) throw new Error("Exa returned no results");
+		return result;
+	},
+});

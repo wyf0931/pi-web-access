@@ -1,3 +1,4 @@
+import { register } from "./provider.ts";
 import { existsSync, readFileSync } from "node:fs";
 import { activityMonitor } from "./activity.ts";
 import type { SearchOptions, SearchResult, SearchResponse } from "./types.ts";
@@ -208,3 +209,10 @@ export async function searchWithBrave(
 		throw err;
 	}
 }
+
+register({
+	id: "brave",
+	label: "Brave Search",
+	isAvailable: isBraveAvailable,
+	search: searchWithBrave,
+});
