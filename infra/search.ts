@@ -1,14 +1,14 @@
 import { existsSync, readFileSync } from "node:fs";
-import { listAvailable, get, list, type SearchProviderId } from "./provider.ts";
+import { listAvailable, get, list, type SearchProviderId } from "./../providers/provider.ts";
 
 // Ensure all providers self-register at import time.
-import "./exa.ts";
-import "./brave.ts";
-import "./parallel.ts";
-import "./tavily.ts";
+import "../providers/exa.ts";
+import "../providers/brave.ts";
+import "../providers/parallel.ts";
+import "../providers/tavily.ts";
 
 import type { SearchResult, SearchResponse, SearchOptions } from "./types.ts";
-import { loadConfig } from "./config.ts";
+import { loadConfig } from "./../config.ts";
 
 export type SearchProvider = "auto" | SearchProviderId;
 export type ResolvedSearchProvider = SearchProviderId;

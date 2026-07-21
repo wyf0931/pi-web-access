@@ -1,4 +1,4 @@
-import type { ExtractedContent } from "./extract.ts";
+import type { ExtractedContent } from "./../extract/extract.ts";
 
 /** A single cited search result. */
 export interface SearchResult {

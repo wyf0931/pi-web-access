@@ -1,7 +1,7 @@
 import { register } from "./provider.ts";
-import type { ExtractedContent } from "./extract.ts";
-import type { SearchOptions, SearchResponse } from "./types.ts";
-import { getExaApiKey } from "./config.ts";
+import type { ExtractedContent } from "./../extract/extract.ts";
+import type { SearchOptions, SearchResponse } from "./../infra/types.ts";
+import { getExaApiKey } from "./../config.ts";
 
 const EXA_ANSWER_URL = "https://api.exa.ai/answer";
 const EXA_SEARCH_URL = "https://api.exa.ai/search";

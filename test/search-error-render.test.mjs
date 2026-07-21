@@ -3,7 +3,7 @@ import { fileURLToPath } from "node:url";
 import { readFileSync, readdirSync } from "node:fs";
 import { test } from "node:test";
 
-import { buildSearchErrorPlan } from "../render-search-error.ts";
+import { buildSearchErrorPlan } from "./../infra/render-search-error.ts";
 
 // --- fixture: a web_search error with partial diagnostics ---
 const searchError = {
@@ -64,7 +64,7 @@ test("non-cancel error has no curator/browser cruft", () => {
 
 // --- integration: buildSearchErrorPlan is wired into all 3 tools ---
 const toolDir = fileURLToPath(new URL("../tools", import.meta.url));
-const renderingPath = fileURLToPath(new URL("../rendering.ts", import.meta.url));
+const renderingPath = fileURLToPath(new URL("../infra/rendering.ts", import.meta.url));
 const renderingSrc = readFileSync(renderingPath, "utf8");
 const toolFiles = readdirSync(toolDir)
 	.filter((f) => f.endsWith(".ts"))
@@ -75,7 +75,7 @@ test("rendering.ts exports buildSearchErrorPlan and wires it into every tool", (
 	assert.match(renderingSrc, /export \{ buildSearchErrorPlan/);
 	assert.match(renderingSrc, /export function renderSearchErrorPlan/);
 	for (const src of toolFiles) {
-		assert.match(src, /from "\.\.\/rendering\.ts"/);
+		assert.match(src, /from "\.\.\/infra\/rendering\.ts"/);
 	}
 	const callSiteCount = (allToolSrc.match(/const plan = buildSearchErrorPlan\(/g) || []).length;
 	assert.equal(callSiteCount, 3, `expected 3 buildSearchErrorPlan calls, got ${callSiteCount}`);

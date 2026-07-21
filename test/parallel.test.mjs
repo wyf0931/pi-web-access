@@ -5,9 +5,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 
-const parallelModuleUrl = new URL("../parallel.ts", import.meta.url).href;
-const searchModuleUrl = new URL("../search.ts", import.meta.url).href;
-const extractModuleUrl = new URL("../extract.ts", import.meta.url).href;
+const parallelModuleUrl = new URL("../providers/parallel.ts", import.meta.url).href;
+const searchModuleUrl = new URL("../infra/search.ts", import.meta.url).href;
+const extractModuleUrl = new URL("../extract/extract.ts", import.meta.url).href;
 
 async function createHome(config = {}) {
 	const home = await mkdtemp(join(tmpdir(), "pi-web-access-parallel-"));

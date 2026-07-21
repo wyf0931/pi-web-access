@@ -1,6 +1,6 @@
 import { register } from "./provider.ts";
-import { getBraveApiKey } from "./config.ts";
-import type { SearchOptions, SearchResult, SearchResponse } from "./types.ts";
+import { getBraveApiKey } from "./../config.ts";
+import type { SearchOptions, SearchResult, SearchResponse } from "./../infra/types.ts";
 
 const BRAVE_API_URL = "https://api.search.brave.com/res/v1/web/search";
 const SEARCH_TIMEOUT_MS = 30_000;

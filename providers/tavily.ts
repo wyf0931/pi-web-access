@@ -1,7 +1,7 @@
 import { register } from "./provider.ts";
-import type { ExtractedContent } from "./extract.ts";
-import type { SearchOptions, SearchResponse } from "./types.ts";
-import { getTavilyApiKey } from "./config.ts";
+import type { ExtractedContent } from "./../extract/extract.ts";
+import type { SearchOptions, SearchResponse } from "./../infra/types.ts";
+import { getTavilyApiKey } from "./../config.ts";
 
 const TAVILY_API_URL = "https://api.tavily.com/search";
 const SEARCH_TIMEOUT_MS = 60_000;

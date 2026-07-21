@@ -1,4 +1,4 @@
-import type { SearchResponse, SearchOptions } from "./types.ts";
+import type { SearchResponse, SearchOptions } from "./../infra/types.ts";
 
 export type SearchProviderId = "exa" | "brave" | "parallel" | "tavily";
 

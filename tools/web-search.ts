@@ -2,12 +2,12 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Text } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
 import { StringEnum } from "@earendil-works/pi-ai/compat";
-import { fetchAllContent, type ExtractedContent } from "../extract.ts";
-import { search, type SearchProvider } from "../search.ts";
-import type { SearchResult } from "../types.ts";
+import { fetchAllContent, type ExtractedContent } from "../extract/extract.ts";
+import { search, type SearchProvider } from "../infra/search.ts";
+import type { SearchResult } from "../infra/types.ts";
 import { loadConfig } from "../config.ts";
-import { generateId, storeResult, type QueryResultData, type StoredSearchData } from "../storage.ts";
-import { buildSearchErrorPlan, type SearchErrorPlan, renderSearchErrorPlan, type ToolTheme, formatSearchSummary, formatQueryHeader, formatFullResults, hasFullInlineCoverage } from "../rendering.ts";
+import { generateId, storeResult, type QueryResultData, type StoredSearchData } from "../infra/storage.ts";
+import { buildSearchErrorPlan, type SearchErrorPlan, renderSearchErrorPlan, type ToolTheme, formatSearchSummary, formatQueryHeader, formatFullResults, hasFullInlineCoverage } from "../infra/rendering.ts";
 import { pendingFetches, sessionActive } from "../session.ts";
 
 function normalizeProviderInput(value: unknown): SearchProvider | undefined {

@@ -1,7 +1,7 @@
 import { register } from "./provider.ts";
-import type { ExtractedContent, ExtractOptions } from "./extract.ts";
-import { getParallelApiKey } from "./config.ts";
-import type { SearchOptions, SearchResponse } from "./types.ts";
+import type { ExtractedContent, ExtractOptions } from "./../extract/extract.ts";
+import { getParallelApiKey } from "./../config.ts";
+import type { SearchOptions, SearchResponse } from "./../infra/types.ts";
 
 const PARALLEL_SEARCH_URL = "https://api.parallel.ai/v1/search";
 const PARALLEL_EXTRACT_URL = "https://api.parallel.ai/v1/extract";

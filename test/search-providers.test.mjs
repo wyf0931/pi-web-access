@@ -5,10 +5,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 
-const braveModuleUrl = new URL("../brave.ts", import.meta.url).href;
-const exaModuleUrl = new URL("../exa.ts", import.meta.url).href;
-const tavilyModuleUrl = new URL("../tavily.ts", import.meta.url).href;
-const searchModuleUrl = new URL("../search.ts", import.meta.url).href;
+const braveModuleUrl = new URL("../providers/brave.ts", import.meta.url).href;
+const exaModuleUrl = new URL("../providers/exa.ts", import.meta.url).href;
+const tavilyModuleUrl = new URL("../providers/tavily.ts", import.meta.url).href;
+const searchModuleUrl = new URL("../infra/search.ts", import.meta.url).href;
 
 function runChild(script, env) {
 	const childEnv = { ...process.env };

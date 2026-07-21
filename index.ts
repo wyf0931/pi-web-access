@@ -1,6 +1,6 @@
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { loadConfigForExtensionInit } from "./config.ts";
-import { clearResults, restoreFromSession } from "./storage.ts";
+import { clearResults, restoreFromSession } from "./infra/storage.ts";
 import { abortPendingFetches, setSessionActive } from "./session.ts";
 import { createWebSearchTool } from "./tools/web-search.ts";
 import { createFetchContentTool } from "./tools/fetch-content.ts";

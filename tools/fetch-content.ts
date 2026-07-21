@@ -1,10 +1,10 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Text } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
-import { fetchAllContent, type ExtractedContent } from "../extract.ts";
-import { normalizeFetchContentParams } from "../fetch-params.ts";
-import { generateId, storeResult, type StoredSearchData } from "../storage.ts";
-import { buildSearchErrorPlan, renderSearchErrorPlan, type ToolTheme, MAX_INLINE_CONTENT } from "../rendering.ts";
+import { fetchAllContent, type ExtractedContent } from "../extract/extract.ts";
+import { normalizeFetchContentParams } from "../extract/fetch-params.ts";
+import { generateId, storeResult, type StoredSearchData } from "../infra/storage.ts";
+import { buildSearchErrorPlan, renderSearchErrorPlan, type ToolTheme, MAX_INLINE_CONTENT } from "../infra/rendering.ts";
 
 export interface FetchContentToolDeps { pi: ExtensionAPI; }
 

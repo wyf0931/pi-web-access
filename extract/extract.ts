@@ -4,10 +4,10 @@ import TurndownService from "turndown";
 import pLimit from "p-limit";
 import { extractRSCContent } from "./rsc-extract.ts";
 
-import { extractWithParallel, isParallelAvailable } from "./parallel.ts";
+import { extractWithParallel, isParallelAvailable } from "./../providers/parallel.ts";
 import { existsSync, readFileSync } from "node:fs";
-import { fetchRemoteUrl, validateRemoteUrl, type Lookup } from "./ssrf-protection.ts";
-import { getWebSearchConfigPath } from "./utils.ts";
+import { fetchRemoteUrl, validateRemoteUrl, type Lookup } from "./../infra/ssrf-protection.ts";
+import { getWebSearchConfigPath } from "./../infra/utils.ts";
 
 const DEFAULT_TIMEOUT_MS = 30000;
 const CONCURRENT_LIMIT = 3;

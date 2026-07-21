@@ -1,5 +1,5 @@
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from "node:fs";
-import { getWebSearchConfigDir, getWebSearchConfigPath } from "./utils.ts";
+import { getWebSearchConfigDir, getWebSearchConfigPath } from "./infra/utils.ts";
 
 export const WEB_SEARCH_CONFIG_PATH = getWebSearchConfigPath();
 
