@@ -1,14 +1,10 @@
 import { register } from "./provider.ts";
-import { existsSync, readFileSync } from "node:fs";
-import { activityMonitor } from "./activity.ts";
 import type { ExtractedContent, ExtractOptions } from "./extract.ts";
+import { getParallelApiKey } from "./config.ts";
 import type { SearchOptions, SearchResponse } from "./types.ts";
-import { getWebSearchConfigPath } from "./utils.ts";
 
 const PARALLEL_SEARCH_URL = "https://api.parallel.ai/v1/search";
 const PARALLEL_EXTRACT_URL = "https://api.parallel.ai/v1/extract";
-const CONFIG_PATH = getWebSearchConfigPath();
-const MIN_PARALLEL_API_KEY_LENGTH = 8;
 const MIN_USEFUL_CONTENT = 500;
 const SEARCH_TIMEOUT_MS = 60_000;
 
@@ -26,10 +22,6 @@ const PLACEHOLDER_API_KEY_DENYLIST = new Set([
 	"api-key",
 	"xxx",
 ]);
-
-interface WebSearchConfig {
-	parallelApiKey?: unknown;
-}
 
 interface V1WebSearchResult {
 	url: string;
@@ -50,65 +42,8 @@ interface ParallelSearchOptions extends SearchOptions {
 	includeContent?: boolean;
 }
 
-let cachedConfig: WebSearchConfig | null = null;
-
-function loadConfig(): WebSearchConfig {
-	if (cachedConfig) return cachedConfig;
-	if (!existsSync(CONFIG_PATH)) {
-		cachedConfig = {};
-		return cachedConfig;
-	}
-
-	const raw = readFileSync(CONFIG_PATH, "utf-8");
-	try {
-		cachedConfig = JSON.parse(raw) as WebSearchConfig;
-		return cachedConfig;
-	} catch (err) {
-		const message = err instanceof Error ? err.message : String(err);
-		throw new Error(`Failed to parse ${CONFIG_PATH}: ${message}`);
-	}
-}
-
-export function clearParallelConfigCache(): void {
-	cachedConfig = null;
-}
-
-function normalizeApiKey(value: unknown): string | null {
-	if (typeof value !== "string") return null;
-	const normalized = value.trim();
-	return normalized.length > 0 ? normalized : null;
-}
-
-function isPlaceholderApiKey(key: string): boolean {
-	const normalized = key.trim();
-	return normalized.length < MIN_PARALLEL_API_KEY_LENGTH || PLACEHOLDER_API_KEY_DENYLIST.has(normalized.toLowerCase());
-}
-
-function resolveApiKey(): string | null {
-	const envKey = normalizeApiKey(process.env.PARALLEL_API_KEY);
-	if (envKey && !isPlaceholderApiKey(envKey)) return envKey;
-
-	const configKey = normalizeApiKey(loadConfig().parallelApiKey);
-	if (configKey && !isPlaceholderApiKey(configKey)) return configKey;
-
-	return null;
-}
-
-function getApiKey(): string {
-	const key = resolveApiKey();
-	if (!key) {
-		throw new Error(
-			"Parallel API key not found. Either:\n" +
-			`  1. Create ${CONFIG_PATH} with { "parallelApiKey": "your-key" }\n` +
-			"  2. Set PARALLEL_API_KEY environment variable\n" +
-			"Get a key at https://platform.parallel.ai",
-		);
-	}
-	return key;
-}
-
 export function hasParallelApiKey(): boolean {
-	return !!resolveApiKey();
+	try { getParallelApiKey(); return true; } catch { return false; }
 }
 
 export function isParallelAvailable(): boolean {
@@ -122,27 +57,6 @@ function requestSignal(signal?: AbortSignal): AbortSignal {
 
 function errorMessage(err: unknown): string {
 	return err instanceof Error ? err.message : String(err);
-}
-
-function activityContext(
-	url: string,
-	body: Record<string, unknown>,
-): { type: "api" | "fetch"; query?: string; url?: string } {
-	if (typeof body.objective === "string" && body.objective.trim().length > 0) {
-		return { type: "api", query: body.objective };
-	}
-
-	const searchQueries = body.search_queries;
-	if (Array.isArray(searchQueries) && typeof searchQueries[0] === "string") {
-		return { type: "api", query: searchQueries[0] };
-	}
-
-	const urls = body.urls;
-	if (Array.isArray(urls) && typeof urls[0] === "string") {
-		return { type: "fetch", url: urls[0] };
-	}
-
-	return url.includes("/search") ? { type: "api", query: "Parallel search" } : { type: "fetch", url };
 }
 
 function recencyToAfterDate(filter: string): string {
@@ -324,8 +238,7 @@ async function parallelFetch(
 	body: Record<string, unknown>,
 	signal?: AbortSignal,
 ): Promise<Record<string, unknown>> {
-	const apiKey = getApiKey();
-	const activityId = activityMonitor.logStart(activityContext(url, body));
+	const apiKey = getParallelApiKey();
 	let response: Response;
 	try {
 		response = await fetch(url, {
@@ -339,23 +252,18 @@ async function parallelFetch(
 		});
 	} catch (err) {
 		const message = errorMessage(err);
-		if (message.toLowerCase().includes("abort")) activityMonitor.logComplete(activityId, 0);
-		else activityMonitor.logError(activityId, message);
 		throw err;
 	}
 
 	if (!response.ok) {
-		activityMonitor.logComplete(activityId, response.status);
 		const errorText = await response.text();
 		throw new Error(`Parallel API error ${response.status}: ${errorText.slice(0, 300)}`);
 	}
 
 	try {
 		const data = await response.json() as Record<string, unknown>;
-		activityMonitor.logComplete(activityId, response.status);
 		return data;
 	} catch (err) {
-		activityMonitor.logComplete(activityId, response.status);
 		throw new Error(`Parallel API returned invalid JSON: ${errorMessage(err)}`);
 	}
 }

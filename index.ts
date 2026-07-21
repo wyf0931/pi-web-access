@@ -1,6 +1,5 @@
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { loadConfigForExtensionInit } from "./config.ts";
-import { activityMonitor } from "./activity.ts";
 import { clearResults, restoreFromSession } from "./storage.ts";
 import { abortPendingFetches, setSessionActive } from "./session.ts";
 import { createWebSearchTool } from "./tools/web-search.ts";
@@ -20,7 +19,6 @@ export default function (pi: ExtensionAPI) {
 		abortPendingFetches();
 		setSessionActive(true);
 		restoreFromSession(_ctx);
-		activityMonitor.clear();
 	}
 
 	pi.on("session_start", async (_event, ctx) => handleSessionChange(ctx));
@@ -29,6 +27,5 @@ export default function (pi: ExtensionAPI) {
 		setSessionActive(false);
 		abortPendingFetches();
 		clearResults();
-		activityMonitor.clear();
 	});
 }

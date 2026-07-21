@@ -1,18 +1,11 @@
 import { register } from "./provider.ts";
-import { existsSync, readFileSync } from "node:fs";
-import { activityMonitor } from "./activity.ts";
 import type { ExtractedContent } from "./extract.ts";
 import type { SearchOptions, SearchResponse } from "./types.ts";
-import { getWebSearchConfigPath } from "./utils.ts";
+import { getExaApiKey } from "./config.ts";
 
 const EXA_ANSWER_URL = "https://api.exa.ai/answer";
 const EXA_SEARCH_URL = "https://api.exa.ai/search";
 const EXA_MCP_URL = "https://mcp.exa.ai/mcp";
-const CONFIG_PATH = getWebSearchConfigPath();
-
-interface WebSearchConfig {
-	exaApiKey?: unknown;
-}
 
 interface ExaAnswerResponse {
 	answer?: string;
@@ -49,35 +42,6 @@ export interface ExaSearchOptions extends SearchOptions {
 }
 
 type McpParsedResult = { title: string; url: string; content: string };
-
-let cachedConfig: WebSearchConfig | null = null;
-
-function loadConfig(): WebSearchConfig {
-	if (cachedConfig) return cachedConfig;
-	if (!existsSync(CONFIG_PATH)) {
-		cachedConfig = {};
-		return cachedConfig;
-	}
-
-	const raw = readFileSync(CONFIG_PATH, "utf-8");
-	try {
-		cachedConfig = JSON.parse(raw) as WebSearchConfig;
-		return cachedConfig;
-	} catch (err) {
-		const message = err instanceof Error ? err.message : String(err);
-		throw new Error(`Failed to parse ${CONFIG_PATH}: ${message}`);
-	}
-}
-
-function normalizeApiKey(value: unknown): string | null {
-	if (typeof value !== "string") return null;
-	const normalized = value.trim();
-	return normalized.length > 0 ? normalized : null;
-}
-
-function getApiKey(): string | null {
-	return normalizeApiKey(process.env.EXA_API_KEY) ?? normalizeApiKey(loadConfig().exaApiKey);
-}
 
 function requestSignal(signal?: AbortSignal): AbortSignal {
 	const timeout = AbortSignal.timeout(60000);
@@ -310,8 +274,6 @@ function buildMcpQuery(query: string, options: ExaSearchOptions): string {
 
 async function searchWithExaMcp(query: string, options: ExaSearchOptions = {}): Promise<SearchResponse | null> {
 	const enrichedQuery = buildMcpQuery(query, options);
-	const activityId = activityMonitor.logStart({ type: "api", query: enrichedQuery });
-
 	try {
 		const text = await callExaMcp(
 			"web_search_exa",
@@ -325,8 +287,6 @@ async function searchWithExaMcp(query: string, options: ExaSearchOptions = {}): 
 			options.signal,
 		);
 		const parsedResults = parseMcpResults(text);
-		activityMonitor.logComplete(activityId, 200);
-
 		if (!parsedResults) return null;
 
 		const response: SearchResponse = {
@@ -347,9 +307,7 @@ async function searchWithExaMcp(query: string, options: ExaSearchOptions = {}): 
 	} catch (err) {
 		const message = err instanceof Error ? err.message : String(err);
 		if (message.toLowerCase().includes("abort")) {
-			activityMonitor.logComplete(activityId, 0);
 		} else {
-			activityMonitor.logError(activityId, message);
 		}
 		throw err;
 	}
@@ -360,11 +318,11 @@ export function isExaAvailable(): boolean {
 }
 
 export function hasExaApiKey(): boolean {
-	return !!getApiKey();
+	return !!getExaApiKey();
 }
 
 export async function searchWithExa(query: string, options: ExaSearchOptions = {}): Promise<ExaSearchResult> {
-	const apiKey = getApiKey();
+	const apiKey = getExaApiKey();
 	if (!apiKey) {
 		return searchWithExaMcp(query, options);
 	}
@@ -373,8 +331,6 @@ export async function searchWithExa(query: string, options: ExaSearchOptions = {
 		|| !!options.recencyFilter
 		|| !!options.domainFilter?.length
 		|| !!(options.numResults && options.numResults !== 5);
-
-	const activityId = activityMonitor.logStart({ type: "api", query });
 
 	try {
 		if (!useSearch) {
@@ -397,7 +353,6 @@ export async function searchWithExa(query: string, options: ExaSearchOptions = {
 			}
 
 			const data = await response.json() as ExaAnswerResponse;
-			activityMonitor.logComplete(activityId, response.status);
 			return {
 				answer: data.answer || "",
 				results: mapResults(data.citations),
@@ -432,8 +387,6 @@ export async function searchWithExa(query: string, options: ExaSearchOptions = {
 		}
 
 		const data = await response.json() as ExaSearchResponse;
-		activityMonitor.logComplete(activityId, response.status);
-
 		const mapped: SearchResponse = {
 			answer: buildAnswerFromSearchResults(data.results),
 			results: mapResults(data.results),
@@ -446,9 +399,7 @@ export async function searchWithExa(query: string, options: ExaSearchOptions = {
 	} catch (err) {
 		const message = err instanceof Error ? err.message : String(err);
 		if (message.toLowerCase().includes("abort")) {
-			activityMonitor.logComplete(activityId, 0);
 		} else {
-			activityMonitor.logError(activityId, message);
 		}
 		throw err;
 	}
