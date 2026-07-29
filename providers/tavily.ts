@@ -1,17 +1,10 @@
 import { register } from "./provider.ts";
-import { existsSync, readFileSync } from "node:fs";
-import { activityMonitor } from "./activity.ts";
-import type { ExtractedContent } from "./extract.ts";
-import type { SearchOptions, SearchResponse } from "./types.ts";
-import { getWebSearchConfigPath } from "./utils.ts";
+import type { ExtractedContent } from "./../extract/extract.ts";
+import type { SearchOptions, SearchResponse } from "./../infra/types.ts";
+import { getTavilyApiKey } from "./../config.ts";
 
 const TAVILY_API_URL = "https://api.tavily.com/search";
-const CONFIG_PATH = getWebSearchConfigPath();
 const SEARCH_TIMEOUT_MS = 60_000;
-
-interface WebSearchConfig {
-	tavilyApiKey?: unknown;
-}
 
 interface TavilyResult {
 	title?: string;
@@ -27,48 +20,6 @@ interface TavilyResponse {
 
 interface TavilySearchOptions extends SearchOptions {
 	includeContent?: boolean;
-}
-
-let cachedConfig: WebSearchConfig | null = null;
-
-function loadConfig(): WebSearchConfig {
-	if (cachedConfig) return cachedConfig;
-	if (!existsSync(CONFIG_PATH)) {
-		cachedConfig = {};
-		return cachedConfig;
-	}
-
-	const raw = readFileSync(CONFIG_PATH, "utf-8");
-	try {
-		cachedConfig = JSON.parse(raw) as WebSearchConfig;
-		return cachedConfig;
-	} catch (err) {
-		const message = err instanceof Error ? err.message : String(err);
-		throw new Error(`Failed to parse ${CONFIG_PATH}: ${message}`);
-	}
-}
-
-function normalizeApiKey(value: unknown): string | null {
-	if (typeof value !== "string") return null;
-	const normalized = value.trim();
-	return normalized.length > 0 ? normalized : null;
-}
-
-function getApiKey(): string | null {
-	return normalizeApiKey(process.env.TAVILY_API_KEY) ?? normalizeApiKey(loadConfig().tavilyApiKey);
-}
-
-function requireApiKey(): string {
-	const apiKey = getApiKey();
-	if (!apiKey) {
-		throw new Error(
-			"Tavily API key not found. Either:\n" +
-			`  1. Create ${CONFIG_PATH} with { "tavilyApiKey": "your-key" }\n` +
-			"  2. Set TAVILY_API_KEY environment variable\n" +
-			"Get a key at https://app.tavily.com/",
-		);
-	}
-	return apiKey;
 }
 
 function normalizeCount(value: number | undefined): number {
@@ -145,7 +96,7 @@ function mapInlineContent(results: TavilyResult[] | undefined): ExtractedContent
 }
 
 export function isTavilyAvailable(): boolean {
-	return !!getApiKey();
+	return !!getTavilyApiKey();
 }
 
 export async function searchWithTavily(query: string, options: TavilySearchOptions = {}): Promise<SearchResponse> {
@@ -160,13 +111,12 @@ export async function searchWithTavily(query: string, options: TavilySearchOptio
 		...mapDomainFilter(options.domainFilter),
 	};
 
-	const activityId = activityMonitor.logStart({ type: "api", query });
 	let response: Response;
 	try {
 		response = await fetch(TAVILY_API_URL, {
 			method: "POST",
 			headers: {
-				"Authorization": `Bearer ${requireApiKey()}`,
+				"Authorization": `Bearer ${getTavilyApiKey()}`,
 				"Content-Type": "application/json",
 			},
 			body: JSON.stringify(body),
@@ -174,13 +124,10 @@ export async function searchWithTavily(query: string, options: TavilySearchOptio
 		});
 	} catch (err) {
 		const message = errorMessage(err);
-		if (message.toLowerCase().includes("abort")) activityMonitor.logComplete(activityId, 0);
-		else activityMonitor.logError(activityId, message);
 		throw err;
 	}
 
 	if (!response.ok) {
-		activityMonitor.logComplete(activityId, response.status);
 		const errorText = await response.text();
 		throw new Error(`Tavily API error ${response.status}: ${errorText.slice(0, 300)}`);
 	}
@@ -189,11 +136,9 @@ export async function searchWithTavily(query: string, options: TavilySearchOptio
 	try {
 		data = await response.json() as TavilyResponse;
 	} catch (err) {
-		activityMonitor.logComplete(activityId, response.status);
 		throw new Error(`Tavily API returned invalid JSON: ${errorMessage(err)}`);
 	}
 
-	activityMonitor.logComplete(activityId, response.status);
 	const result: SearchResponse = {
 		answer: typeof data.answer === "string" ? data.answer : "",
 		results: mapResults(data.results, numResults),

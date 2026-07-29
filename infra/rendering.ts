@@ -1,7 +1,7 @@
 import { Text } from "@earendil-works/pi-tui";
 import { buildSearchErrorPlan, type SearchErrorPlan } from "./render-search-error.ts";
 import type { SearchResult } from "./types.ts";
-import type { ExtractedContent } from "./extract.ts";
+import type { ExtractedContent } from "./../extract/extract.ts";
 import type { QueryResultData } from "./storage.ts";
 
 export { buildSearchErrorPlan, type SearchErrorPlan } from "./render-search-error.ts";

@@ -1,8 +1,8 @@
 import { Text } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
-import type { ExtractedContent } from "../extract.ts";
-import { getResult, type QueryResultData } from "../storage.ts";
-import { buildSearchErrorPlan, renderSearchErrorPlan, type ToolTheme, formatFullResults } from "../rendering.ts";
+import type { ExtractedContent } from "../extract/extract.ts";
+import { getResult, type QueryResultData } from "../infra/storage.ts";
+import { buildSearchErrorPlan, renderSearchErrorPlan, type ToolTheme, formatFullResults } from "../infra/rendering.ts";
 
 export function createGetContentTool() {
 	return {

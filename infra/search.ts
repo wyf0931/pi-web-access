@@ -1,41 +1,20 @@
 import { existsSync, readFileSync } from "node:fs";
-import { listAvailable, get, list, type SearchProviderId } from "./provider.ts";
+import { listAvailable, get, list, type SearchProviderId } from "./../providers/provider.ts";
 
 // Ensure all providers self-register at import time.
-import "./exa.ts";
-import "./brave.ts";
-import "./parallel.ts";
-import "./tavily.ts";
+import "../providers/exa.ts";
+import "../providers/brave.ts";
+import "../providers/parallel.ts";
+import "../providers/tavily.ts";
 
 import type { SearchResult, SearchResponse, SearchOptions } from "./types.ts";
-import { getWebSearchConfigPath } from "./utils.ts";
+import { loadConfig } from "./../config.ts";
 
 export type SearchProvider = "auto" | SearchProviderId;
 export type ResolvedSearchProvider = SearchProviderId;
 
 export interface AttributedSearchResponse extends SearchResponse {
 	provider: ResolvedSearchProvider;
-}
-
-const CONFIG_PATH = getWebSearchConfigPath();
-
-let cachedProvider: SearchProvider | null = null;
-
-function getConfiguredProvider(): SearchProvider {
-	if (cachedProvider) return cachedProvider;
-	if (!existsSync(CONFIG_PATH)) {
-		cachedProvider = "auto";
-		return cachedProvider;
-	}
-	let raw: { provider?: unknown };
-	try {
-		raw = JSON.parse(readFileSync(CONFIG_PATH, "utf-8")) as { provider?: unknown };
-	} catch {
-		cachedProvider = "auto";
-		return cachedProvider;
-	}
-	cachedProvider = normalizeProvider(raw.provider);
-	return cachedProvider;
 }
 
 function normalizeProvider(value: unknown): SearchProvider {
@@ -66,7 +45,7 @@ export async function search(
 	query: string,
 	options: FullSearchOptions = {},
 ): Promise<AttributedSearchResponse> {
-	const requested = options.provider ?? getConfiguredProvider();
+	const requested = options.provider ?? (loadConfig().provider ?? "auto");
 
 	// Explicit provider — run it directly, surface failures.
 	if (requested !== "auto") {
@@ -93,7 +72,7 @@ export async function search(
 	if (available.length === 0) {
 		throw new Error(
 			"No search provider is available. Set an API key for at least one of " +
-			`exaApiKey, braveApiKey, parallelApiKey, or tavilyApiKey in ${CONFIG_PATH} ` +
+			`exaApiKey, braveApiKey, parallelApiKey, or tavilyApiKey in ~/.pi/web-search.json ` +
 			"(or the EXA_API_KEY, BRAVE_API_KEY, PARALLEL_API_KEY, TAVILY_API_KEY env vars). " +
 			"Exa also works zero-config via its MCP."
 		);

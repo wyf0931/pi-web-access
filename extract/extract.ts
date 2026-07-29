@@ -2,13 +2,12 @@ import { Readability } from "@mozilla/readability";
 import { parseHTML } from "linkedom";
 import TurndownService from "turndown";
 import pLimit from "p-limit";
-import { activityMonitor } from "./activity.ts";
 import { extractRSCContent } from "./rsc-extract.ts";
 
-import { extractWithParallel, isParallelAvailable } from "./parallel.ts";
+import { extractWithParallel, isParallelAvailable } from "./../providers/parallel.ts";
 import { existsSync, readFileSync } from "node:fs";
-import { fetchRemoteUrl, validateRemoteUrl, type Lookup } from "./ssrf-protection.ts";
-import { getWebSearchConfigPath } from "./utils.ts";
+import { fetchRemoteUrl, validateRemoteUrl, type Lookup } from "./../infra/ssrf-protection.ts";
+import { getWebSearchConfigPath } from "./../infra/utils.ts";
 
 const DEFAULT_TIMEOUT_MS = 30000;
 const CONCURRENT_LIMIT = 3;
@@ -96,8 +95,6 @@ async function extractWithJinaReader(
 ): Promise<ExtractedContent | null> {
 	const jinaUrl = JINA_READER_BASE + url;
 
-	const activityId = activityMonitor.logStart({ type: "api", query: `jina: ${url}` });
-
 	try {
 		await validateRemoteUrl(url, { allowRanges: loadSsrfAllowRanges(), lookup });
 		const res = await fetch(jinaUrl, {
@@ -112,13 +109,10 @@ async function extractWithJinaReader(
 		});
 
 		if (!res.ok) {
-			activityMonitor.logComplete(activityId, res.status);
 			return null;
 		}
 
 		const content = await res.text();
-		activityMonitor.logComplete(activityId, res.status);
-
 		const contentStart = content.indexOf("Markdown Content:");
 		if (contentStart < 0) {
 			return null;
@@ -138,9 +132,7 @@ async function extractWithJinaReader(
 	} catch (err) {
 		const message = err instanceof Error ? err.message : String(err);
 		if (message.toLowerCase().includes("abort")) {
-			activityMonitor.logComplete(activityId, 0);
 		} else {
-			activityMonitor.logError(activityId, message);
 		}
 		return null;
 	}
@@ -228,8 +220,6 @@ async function extractViaHttp(
 	options?: ExtractOptions,
 ): Promise<ExtractedContent> {
 	const timeoutMs = options?.timeoutMs ?? DEFAULT_TIMEOUT_MS;
-	const activityId = activityMonitor.logStart({ type: "fetch", url });
-
 	const controller = new AbortController();
 	const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
@@ -257,7 +247,6 @@ async function extractViaHttp(
 		);
 
 		if (!response.ok) {
-			activityMonitor.logComplete(activityId, response.status);
 			return {
 				url,
 				title: "",
@@ -272,7 +261,6 @@ async function extractViaHttp(
 		if (contentLengthHeader) {
 			const contentLength = parseInt(contentLengthHeader, 10);
 			if (contentLength > maxResponseSize) {
-				activityMonitor.logComplete(activityId, response.status);
 				return {
 					url,
 					title: "",
@@ -287,7 +275,6 @@ async function extractViaHttp(
 			contentType.includes("audio/") ||
 			contentType.includes("video/") ||
 			contentType.includes("application/zip")) {
-			activityMonitor.logComplete(activityId, response.status);
 			return {
 				url,
 				title: "",
@@ -300,7 +287,6 @@ async function extractViaHttp(
 		const isHTML = contentType.includes("text/html") || contentType.includes("application/xhtml+xml");
 
 		if (!isHTML) {
-			activityMonitor.logComplete(activityId, response.status);
 			const title = extractTextTitle(text, url);
 			return { url, title, content: text, error: null };
 		}
@@ -312,11 +298,8 @@ async function extractViaHttp(
 		if (!article) {
 			const rscResult = extractRSCContent(text);
 			if (rscResult) {
-				activityMonitor.logComplete(activityId, response.status);
 				return { url, title: rscResult.title, content: rscResult.content, error: null };
 			}
-
-			activityMonitor.logComplete(activityId, response.status);
 
 			// Provide more specific error message
 			const jsRendered = isLikelyJSRendered(text);
@@ -333,8 +316,6 @@ async function extractViaHttp(
 		}
 
 		const markdown = turndown.turndown(article.content);
-		activityMonitor.logComplete(activityId, response.status);
-
 		if (markdown.length < MIN_USEFUL_CONTENT) {
 			return {
 				url: url,
@@ -350,9 +331,7 @@ async function extractViaHttp(
 	} catch (err) {
 		const message = err instanceof Error ? err.message : String(err);
 		if (message.toLowerCase().includes("abort")) {
-			activityMonitor.logComplete(activityId, 0);
 		} else {
-			activityMonitor.logError(activityId, message);
 		}
 		return { url, title: "", content: "", error: message };
 	} finally {

@@ -1,49 +1,13 @@
 import { register } from "./provider.ts";
-import { existsSync, readFileSync } from "node:fs";
-import { activityMonitor } from "./activity.ts";
-import type { SearchOptions, SearchResult, SearchResponse } from "./types.ts";
-import { getWebSearchConfigPath } from "./utils.ts";
+import { getBraveApiKey } from "./../config.ts";
+import type { SearchOptions, SearchResult, SearchResponse } from "./../infra/types.ts";
 
 const BRAVE_API_URL = "https://api.search.brave.com/res/v1/web/search";
-const CONFIG_PATH = getWebSearchConfigPath();
 const SEARCH_TIMEOUT_MS = 30_000;
-
-interface WebSearchConfig {
-	braveApiKey?: unknown;
-}
 
 interface NormalizedDomainFilters {
 	allowed: string[];
 	blocked: string[];
-}
-
-let cachedConfig: WebSearchConfig | null = null;
-
-function loadConfig(): WebSearchConfig {
-	if (cachedConfig) return cachedConfig;
-	if (!existsSync(CONFIG_PATH)) {
-		cachedConfig = {};
-		return cachedConfig;
-	}
-
-	const raw = readFileSync(CONFIG_PATH, "utf-8");
-	try {
-		cachedConfig = JSON.parse(raw) as WebSearchConfig;
-		return cachedConfig;
-	} catch (err) {
-		const message = err instanceof Error ? err.message : String(err);
-		throw new Error(`Failed to parse ${CONFIG_PATH}: ${message}`);
-	}
-}
-
-function normalizeApiKey(value: unknown): string | null {
-	if (typeof value !== "string") return null;
-	const normalized = value.trim();
-	return normalized.length > 0 ? normalized : null;
-}
-
-function getApiKey(): string | null {
-	return normalizeApiKey(process.env.BRAVE_API_KEY) ?? normalizeApiKey(loadConfig().braveApiKey);
 }
 
 function normalizeCount(value: number | undefined): number {
@@ -119,14 +83,14 @@ function matchesDomainFilters(url: string, filters: NormalizedDomainFilters): bo
 }
 
 export function isBraveAvailable(): boolean {
-	return !!getApiKey();
+	return !!getBraveApiKey();
 }
 
 export async function searchWithBrave(
 	query: string,
 	options: SearchOptions = {},
 ): Promise<SearchResponse> {
-	const apiKey = getApiKey();
+	const apiKey = getBraveApiKey();
 	if (!apiKey) {
 		throw new Error(
 			"Brave Search API key not found. Either:\n" +
@@ -139,7 +103,6 @@ export async function searchWithBrave(
 	const numResults = normalizeCount(options.numResults);
 	const domainFilters = normalizeDomainFilters(options.domainFilter);
 	const searchQuery = buildBraveQuery(query, options.domainFilter);
-	const activityId = activityMonitor.logStart({ type: "api", query: searchQuery });
 	const params = new URLSearchParams({
 		q: searchQuery,
 		count: String(options.domainFilter?.length ? 20 : numResults),
@@ -170,7 +133,6 @@ export async function searchWithBrave(
 		});
 
 		if (!response.ok) {
-			activityMonitor.logError(activityId, `HTTP ${response.status}`);
 			const errorText = await response.text();
 			throw new Error(`Brave Search API error ${response.status}: ${errorText.slice(0, 300)}`);
 		}
@@ -178,7 +140,6 @@ export async function searchWithBrave(
 		const data = await response.json() as {
 			web?: { results?: Array<{ title?: string; url?: string; description?: string }> };
 		};
-		activityMonitor.logComplete(activityId, response.status);
 
 		const results: SearchResult[] = [];
 		for (const item of data.web?.results ?? []) {
@@ -200,12 +161,6 @@ export async function searchWithBrave(
 
 		return { answer, results };
 	} catch (err) {
-		const message = err instanceof Error ? err.message : String(err);
-		if (message.toLowerCase().includes("abort")) {
-			activityMonitor.logComplete(activityId, 0);
-		} else {
-			activityMonitor.logError(activityId, message);
-		}
 		throw err;
 	}
 }
