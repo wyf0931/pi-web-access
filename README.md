@@ -25,7 +25,7 @@
 pi install npm:pi-web-access
 ```
 
-Works immediately with no API keys — Exa MCP provides zero-config search. For direct API access, add a key to `~/.pi/web-search.json`:
+Works immediately with no API keys — Exa MCP provides zero-config search. For direct API access, add a key to `~/.pi/agent/web-search.json`:
 
 ```json
 {
@@ -131,7 +131,7 @@ fetch_content(url)
 
 ## Configuration
 
-Config defaults to `~/.pi/web-search.json`, or `web-search.json` under `PI_CODING_AGENT_DIR` / `XDG_CONFIG_HOME/pi` when set. Every field is optional.
+Config defaults to `~/.pi/agent/web-search.json`, or `web-search.json` under `PI_CODING_AGENT_DIR` / `XDG_CONFIG_HOME/pi` when set. Every field is optional.
 
 ```json
 {
